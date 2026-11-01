@@ -366,6 +366,19 @@ class SketchRenderer:
             viewport={"width": CANVAS_SIZE + 100, "height": CANVAS_SIZE + 100}
         )
         try:
+            async def block_remote(route):
+                # The submission is untrusted code. It may try to fetch an
+                # image or another painting at runtime; only inline data and
+                # the blank page are allowed, so the canvas can only contain
+                # what the sketch itself paints.
+                url = route.request.url
+                if url.startswith("data:") or url == "about:blank":
+                    await route.continue_()
+                else:
+                    await route.abort()
+
+            await page.route("**/*", block_remote)
+
             # `wait_until="commit"` rather than the default `"load"`. A heavy
             # sketch blocks the page's main thread while it paints, so `load`
             # does not fire until the render is finished, and Playwright's own

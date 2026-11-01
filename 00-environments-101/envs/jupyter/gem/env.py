@@ -51,6 +51,7 @@ if _ENV_ROOT not in sys.path:
     sys.path.insert(0, _ENV_ROOT)
 from core.e2b_sandbox import E2BSandbox, CellResult  # noqa: E402
 from core.notebook_tracker import NotebookTracker  # noqa: E402
+from core.grading import last_line_matches  # noqa: E402
 from core.tasks import TASKS  # noqa: E402
 
 load_dotenv()
@@ -224,9 +225,13 @@ class JupyterGemEnv(Env):
     def _compute_reward(self) -> float:
         if not self._expected_output:
             return 0.0
-        if self._expected_output.strip() in self.last_output.strip():
+        if last_line_matches(self._expected_output, self.last_output):
             r = 1.0
-            r += max(0.0, 0.2 * (1.0 - self.step_count / 10.0))
+            # A correct answer submitted without running anything gets no speed
+            # bonus; the bonus is for reaching an answer efficiently, not for
+            # starting at it.
+            if self.step_count > 0:
+                r += max(0.0, 0.2 * (1.0 - self.step_count / 10.0))
             r -= 0.05 * self.error_count
             return max(r, 0.0)
         return 0.0

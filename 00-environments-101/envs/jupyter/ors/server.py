@@ -34,6 +34,7 @@ if _ENV_ROOT not in sys.path:
     sys.path.insert(0, _ENV_ROOT)
 from core.e2b_sandbox import E2BSandbox, CellResult  # noqa: E402
 from core.notebook_tracker import NotebookTracker  # noqa: E402
+from core.grading import last_line_matches  # noqa: E402
 from core.tasks import TASKS  # noqa: E402
 
 
@@ -239,9 +240,12 @@ class JupyterAgentORS(Environment):
         if not expected:
             return 0.0
 
-        if expected in output.strip():
+        if last_line_matches(expected, output):
             r = 1.0
-            r += max(0.0, 0.2 * (1.0 - self._step_count / 10.0))
+            # The bonus is for reaching the answer after doing some work, not
+            # for submitting a guess as the first action.
+            if self._step_count > 0:
+                r += max(0.0, 0.2 * (1.0 - self._step_count / 10.0))
             r -= 0.05 * self._error_count
             return max(r, 0.0)
 

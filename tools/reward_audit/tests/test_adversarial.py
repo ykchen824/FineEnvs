@@ -78,14 +78,12 @@ class WatercolourGateTests(unittest.TestCase):
     def test_static_text_label_is_flagged(self) -> None:
         self.assertTrue(self.report("cheat_text_label.js").writes_text)
 
-    @unittest.expectedFailure
     def test_runtime_image_construction_is_flagged(self) -> None:
-        """`new Image()` is not in the static blacklist; PR 4 must catch it."""
+        """The gate flags runtime Image construction, not only named loaders."""
         self.assertTrue(self.report("cheat_runtime_image.js").external_access)
 
-    @unittest.expectedFailure
     def test_drawing_context_text_is_flagged(self) -> None:
-        """`drawingContext.fillText` bypasses the p5 `text(` check; PR 4."""
+        """The gate flags canvas fillText/strokeText, not only p5 `text(`."""
         self.assertTrue(self.report("cheat_fill_text.js").writes_text)
 
 
@@ -108,13 +106,12 @@ class JupyterRewardTests(unittest.TestCase):
     def test_exact_answer_scores_one(self) -> None:
         self.assertEqual(self.make("y", "y")._compute_reward(), 1.0)
 
-    @unittest.expectedFailure
     def test_incidental_character_is_not_an_answer(self) -> None:
-        """``expected in last_output`` pays for any message containing 'y'."""
+        """A message merely containing 'y' is not the answer."""
         self.assertEqual(self.make("y", "the system is ready")._compute_reward(), 0.0)
 
-    @unittest.expectedFailure
     def test_incidental_number_is_not_an_answer(self) -> None:
+        """A sentence mentioning 14 is not the answer 14."""
         self.assertEqual(self.make("14", "I used 14 tools")._compute_reward(), 0.0)
 
 
@@ -144,14 +141,15 @@ class DesktopRewardTests(unittest.TestCase):
 
 
 class ReferenceHashTests(unittest.TestCase):
-    @unittest.expectedFailure
     def test_committed_mcq_answers_are_not_recoverable_from_their_hashes(self) -> None:
-        """The eval file hashes the answer unsalted; PR 3 must remove the hashes."""
+        """The public eval file must not carry a hash a single letter recovers."""
         data = json.loads((OCR_DATA / "eval-nayana-all-test.json").read_text())
         mcq = [task for task in data["tasks"] if task["family"] == "mcq_vqa"]
         recovered = []
         for task in mcq:
-            expected = task["reference_sha256"]
+            expected = task.get("reference_sha256")
+            if not expected:
+                continue
             for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 if hashlib.sha256(letter.encode()).hexdigest() == expected:
                     recovered.append((task["task_id"], letter))

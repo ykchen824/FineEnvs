@@ -136,6 +136,14 @@ EXTERNAL_ACCESS = (
     "document.write",
     "eval",
     "Function(",
+    # Runtime construction bypasses the statically named loaders above.
+    "new Image",
+    "Image(",
+    ".src",
+    "drawImage",
+    "createImageBitmap",
+    "HTMLImageElement",
+    "OffscreenCanvas",
 )
 
 _FENCE = re.compile(r"```(?:js|javascript)?\s*(.*?)```", re.DOTALL)
@@ -147,7 +155,7 @@ _ENTRY_POINT = re.compile(
 )
 _CALL = re.compile(r"\bbrush\s*\.\s*([A-Za-z_$][\w$]*)")
 _CREATE_CANVAS = re.compile(r"\bcreateCanvas\s*\(([^)]*)\)")
-_TEXT_CALL = re.compile(r"(^|[^.\w])text\s*\(")
+_TEXT_CALL = re.compile(r"(^|[^\w])(?:text|fillText|strokeText)\s*\(")
 _DATA_URI = re.compile(r"data\s*:\s*image/", re.IGNORECASE)
 
 

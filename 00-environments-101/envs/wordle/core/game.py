@@ -26,8 +26,12 @@ WORD_LIST = [
 
 # Tasks: each is a word to guess
 TASKS = [
-    {"task": f"Play Wordle! Guess the hidden 5-letter word. You have 6 attempts.", "answer": word}
-    for word in WORD_LIST[:50]  # 50 tasks
+    {
+        "task_id": f"wordle-{index}",
+        "task": "Play Wordle! Guess the hidden 5-letter word. You have 6 attempts.",
+        "answer": word,
+    }
+    for index, word in enumerate(WORD_LIST[:50])  # 50 tasks
 ]
 
 

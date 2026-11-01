@@ -76,3 +76,9 @@ def test_step_after_turn_budget_done_does_not_submit_or_pay_reward():
     assert _get(again, "done") is True
     assert _get(again, "reward") == 0.0
     assert wordle._game.guesses == []
+
+
+def test_init_info_does_not_expose_the_answer():
+    wordle = env.WordleSkyRLEnv(answer="crane")
+    _prompt, info = wordle.init("prompt")
+    assert "answer" not in info

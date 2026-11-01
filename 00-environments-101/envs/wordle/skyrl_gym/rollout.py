@@ -103,7 +103,7 @@ def main() -> int:
         env.close()
 
     print("\n" + "=" * 80)
-    print(f"FINAL  cumulative_reward={cumulative_reward}  done={done}  answer={info.get('answer')}")
+    print(f"FINAL  cumulative_reward={cumulative_reward}  done={done}  answer=<hidden>")
     print("=" * 80)
     return 0
 

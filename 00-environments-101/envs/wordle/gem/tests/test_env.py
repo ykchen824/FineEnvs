@@ -108,3 +108,9 @@ def test_step_after_turn_budget_truncation_does_not_submit_or_pay_reward():
     assert not terminated and truncated
     assert reward == 0.0
     assert wordle._game.guesses == []
+
+
+def test_reset_info_does_not_expose_the_answer():
+    wordle = env.WordleGemEnv(answer="crane")
+    _obs, info = wordle.reset()
+    assert "answer" not in info

@@ -80,3 +80,19 @@ def test_tools_before_setup_report_no_game():
     env = WordleORS(task_spec={"answer": "crane"})
     assert env.guess(GuessInput(word="crane")).finished is False
     assert "No game" in env.get_history(HistoryInput()).blocks[0].text
+
+
+def test_list_tasks_does_not_expose_the_answer():
+    tasks = WordleORS.list_tasks("train")
+    assert tasks and all("answer" not in task for task in tasks)
+    assert all(task.get("task_id") for task in tasks)
+
+
+def test_task_id_selects_the_pinned_answer_without_disclosing_it():
+    from core.game import TASKS
+
+    task = TASKS[0]
+    env = WordleORS(task_spec={"task_id": task["task_id"]})
+    env.setup()
+    out = env.guess(GuessInput(word=task["answer"]))
+    assert out.finished is True and "Correct" in out.blocks[0].text

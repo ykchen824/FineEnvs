@@ -63,6 +63,9 @@ def test_leading_greater_than_answers_are_values_but_commands_and_pipes_are_flag
             "ran": 1.0,
             "prediction": command_line,
             "stderr": "answer is a command, not a value",
+            "code": "print('ok')",
+            "stdout": command_line,
+            "flags": ["command_shaped_answer"],
         }
 
 
@@ -91,8 +94,16 @@ def test_reward_cache_is_tied_to_completion_list_object_not_reused_id(monkeypatc
     assert calls == [(["same text"], ["first"]), (["same text"], ["second"])]
 
 
+def _isolate_provenance(eval_pass1, monkeypatch):
+    """Keep the eval tests offline: no Hub revision, image or grader lookup."""
+    monkeypatch.setattr(eval_pass1.provenance, "hub_revision", lambda *args, **kwargs: None)
+    monkeypatch.setattr(eval_pass1.provenance, "docker_image_digest", lambda *args, **kwargs: None)
+    monkeypatch.setattr(eval_pass1.rollout_module, "grader_path", lambda: None)
+
+
 def test_eval_summary_writes_none_rewards_as_ungraded(tmp_path, monkeypatch):
     eval_pass1 = load_script("eval_pass1")
+    _isolate_provenance(eval_pass1, monkeypatch)
 
     rows = [
         {"task_id": "none", "difficulty_tier": "easy", "answer": "A", "reward_mode": "exact", "atol": 0.0, "rtol": 0.0, "bucket_prefix": "p", "files": [], "question": "q"},
@@ -139,6 +150,7 @@ def test_eval_summary_writes_none_rewards_as_ungraded(tmp_path, monkeypatch):
 
 def test_eval_summary_with_nothing_graded_has_no_score(tmp_path, monkeypatch):
     eval_pass1 = load_script("eval_pass1")
+    _isolate_provenance(eval_pass1, monkeypatch)
 
     rows = [
         {"task_id": f"t{i}", "difficulty_tier": "easy", "answer": "A", "reward_mode": "exact", "atol": 0.0, "rtol": 0.0,
@@ -183,3 +195,61 @@ def test_python_fence_tags_are_matched_whatever_their_case_or_version(monkeypatc
     # the last block still wins, and a non-Python block is not taken for the program
     assert rollout.extract_code("```Python\nprint('draft')\n```\nthen\n```python3\nprint('final')\n```") == "print('final')"
     assert rollout.extract_code("```bash\nls\n```") != "ls"
+
+
+def test_eval_writes_redacted_provenance_trace(tmp_path, monkeypatch):
+    eval_pass1 = load_script("eval_pass1")
+    _isolate_provenance(eval_pass1, monkeypatch)
+
+    rows = [
+        {"task_id": "t1", "difficulty_tier": "easy", "answer": "A", "reward_mode": "exact",
+         "atol": 0.0, "rtol": 0.0, "bucket_prefix": "p", "files": [], "question": "q"},
+    ]
+
+    class FakeDatasetModule:
+        @staticmethod
+        def load_dataset(dataset, split):
+            return rows
+
+    class Runner:
+        def close(self):
+            pass
+
+    token = "hf_" + "d" * 34
+    monkeypatch.setenv("HF_TOKEN", token)
+
+    def fake_rollout(runner, row, completion):
+        return {
+            "reward": 1.0,
+            "ran": 1.0,
+            "prediction": "A",
+            "stderr": "",
+            "code": f"print('{token}')",
+            "stdout": f"{token}\nA",
+            "flags": [],
+        }
+
+    out_path = tmp_path / "eval_results.json"
+    trace_path = tmp_path / "eval_provenance.jsonl"
+    monkeypatch.setitem(sys.modules, "datasets", FakeDatasetModule)
+    monkeypatch.setattr(eval_pass1, "SandboxRunner", Runner)
+    monkeypatch.setattr(eval_pass1, "rollout", fake_rollout)
+    monkeypatch.setattr(eval_pass1.sys, "argv", ["eval_pass1.py", "--dry-run"])
+    monkeypatch.setenv("DRY_RUN_TASKS", "1")
+    monkeypatch.setattr(eval_pass1, "OUT", str(out_path))
+    monkeypatch.setenv("PROVENANCE_PATH", str(trace_path))
+
+    eval_pass1.main()
+
+    text = trace_path.read_text()
+    assert token not in text
+    records = [json.loads(line) for line in text.splitlines()]
+    assert [record["type"] for record in records] == ["run_start", "task", "run_end"]
+    assert records[1]["task_id"] == "t1"
+    assert records[1]["instruction_sha256"] == eval_pass1.provenance.sha256_text("q")
+    assert records[1]["reward"] == 1.0
+    assert "[redacted]" in records[1]["stdout"]
+    assert records[2]["valid"] is True
+    payload = json.loads(out_path.read_text())
+    assert payload["provenance"]["path"] == str(trace_path)
+    assert payload["provenance"]["run_id"] == records[0]["run_id"]

@@ -186,15 +186,26 @@ def last_line(stdout: str) -> str:
 
 
 _grader = None
+_grader_path: str | None = None
+
+
+def grader_path() -> str:
+    """The local path of the Hub grader, so a run can record its SHA-256."""
+    global _grader_path
+    if _grader_path is None:
+        from huggingface_hub import hf_hub_download
+
+        _grader_path = hf_hub_download(
+            "FineEnvs/SmolDataEnvs", "grader.py", repo_type="dataset"
+        )
+    return _grader_path
 
 
 def grader():
     """SmolDataEnvs' own grader, so training and the dataset agree on what correct means."""
     global _grader
     if _grader is None:
-        from huggingface_hub import hf_hub_download
-
-        path = hf_hub_download("FineEnvs/SmolDataEnvs", "grader.py", repo_type="dataset")
+        path = grader_path()
         spec = importlib.util.spec_from_file_location("smoldataenvs_grader", path)
         mod = importlib.util.module_from_spec(spec)
         sys.modules["smoldataenvs_grader"] = mod  # its dataclasses need this
@@ -225,7 +236,15 @@ def rollout(runner: SandboxRunner, row: dict, completion) -> dict:
         # Not a program. Scoring it costs a sandbox round trip and the answer is
         # always zero, so decide here. Length is deliberately not the test: a
         # correct program can be one short line.
-        return {"reward": 0.0, "ran": 0.0, "prediction": "", "stderr": f"syntax: {exc}"}
+        return {
+            "reward": 0.0,
+            "ran": 0.0,
+            "prediction": "",
+            "stderr": f"syntax: {exc}",
+            "code": code,
+            "stdout": "",
+            "flags": ["syntax"],
+        }
 
     try:
         stdout, stderr = runner.run(row["bucket_prefix"], code)
@@ -234,12 +253,27 @@ def rollout(runner: SandboxRunner, row: dict, completion) -> dict:
         # answer are different events, and collapsing them teaches the model that
         # the dead sandbox was its fault. TRL turns None into NaN and drops the
         # sample from its group baseline.
-        return {"reward": None, "ran": 0.0, "prediction": "", "stderr": f"sandbox: {exc}"}
+        return {
+            "reward": None,
+            "ran": 0.0,
+            "prediction": "",
+            "stderr": f"sandbox: {exc}",
+            "code": code,
+            "stdout": "",
+            "flags": ["sandbox_unavailable"],
+        }
 
     prediction = last_line(stdout)
     if looks_like_a_command(prediction):
-        return {"reward": 0.0, "ran": 1.0, "prediction": prediction,
-                "stderr": "answer is a command, not a value"}
+        return {
+            "reward": 0.0,
+            "ran": 1.0,
+            "prediction": prediction,
+            "stderr": "answer is a command, not a value",
+            "code": code,
+            "stdout": stdout,
+            "flags": ["command_shaped_answer"],
+        }
     return {
         "reward": grade(row, prediction),
         # A program only counts as having run if it PRINTED something. An earlier
@@ -251,6 +285,9 @@ def rollout(runner: SandboxRunner, row: dict, completion) -> dict:
         "ran": 1.0 if prediction else 0.0,
         "prediction": prediction,
         "stderr": stderr[-400:],
+        "code": code,
+        "stdout": stdout,
+        "flags": [],
     }
 
 

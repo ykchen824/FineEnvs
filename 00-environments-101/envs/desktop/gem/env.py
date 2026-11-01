@@ -30,7 +30,7 @@ _parent = str(Path(__file__).resolve().parents[1])
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 from core.desktop import DesktopController  # noqa: E402
-from core.tasks import TASKS  # noqa: E402
+from core.tasks import TASKS, verify_task  # noqa: E402
 
 load_dotenv()
 
@@ -59,6 +59,7 @@ class DesktopGemEnv(Env):
         self,
         task: str = "",
         expected_output: str = "",
+        verify_command: str = "",
         app: str = "firefox",
         resolution: tuple = (1024, 768),
         max_turns: int = 8,
@@ -70,6 +71,7 @@ class DesktopGemEnv(Env):
         self._api_key = api_key or os.environ.get("E2B_API_KEY", "")
         self._task = task
         self._expected_output = expected_output
+        self._verify_command = verify_command
         self._app = app
         self._resolution = resolution
         self._max_turns = max_turns
@@ -89,6 +91,7 @@ class DesktopGemEnv(Env):
             t = TASKS[(self._task_index if self._task_index >= 0 else 0) % len(TASKS)]
             self._task = t["task"]
             self._expected_output = t["expected_output"]
+            self._verify_command = t.get("verify_command", "")
             self._app = t.get("app", self._app)
             self._resolution = tuple(t.get("resolution", self._resolution))
 
@@ -126,7 +129,11 @@ class DesktopGemEnv(Env):
 
         terminated = bool(self._ctrl and self._ctrl.terminated)
         truncated = self.step_count >= self._max_turns
-        reward = 1.0 if (terminated and self._ctrl.terminate_status == "success") else 0.0
+        reward = 0.0
+        if terminated and self._ctrl and self._ctrl.terminate_status == "success":
+            reward = 1.0 if verify_task(
+                {"verify_command": self._verify_command}, self._ctrl.run_command
+            ) else 0.0
 
         return "\n".join(results), reward, terminated, truncated, {
             "step_count": self.step_count,

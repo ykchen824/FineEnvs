@@ -1,11 +1,9 @@
 """Adversarial reward tests for the audit in issue #1.
 
 Each attack is paired with a legitimate-run control in the same class, so a
-guard that rejects everything fails the control. Tests marked
-``expectedFailure`` document a guard that is still open: they pass CI while the
-hack works, and an unexpected success fails CI once the guard is fixed, which
-is the reminder to remove the marker. The fix PRs are tracked in the audit
-issue.
+guard that rejects everything fails the control. The Desktop group also checks
+that a passing status probe still scores 1.0, so the fix cannot simply return
+zero for every success.
 """
 
 from __future__ import annotations
@@ -126,18 +124,26 @@ class DesktopRewardTests(unittest.TestCase):
     def tearDown(self) -> None:
         _purge_core_modules(DESKTOP)
 
-    def make(self, status: str):
-        env = self.env.DesktopSkyRLEnv(expected_output="Example Domain")
-        env._ctrl = types.SimpleNamespace(terminate_status=status)
+    def make(self, status: str, verified: bool = False):
+        env = self.env.DesktopSkyRLEnv(
+            expected_output="Example Domain",
+            verify_command="check the saved page",
+        )
+        env._ctrl = types.SimpleNamespace(
+            terminate_status=status,
+            run_command=lambda command: ("VERIFIED" if verified else "NOT_VERIFIED", None),
+        )
         return env
 
     def test_failed_termination_scores_zero(self) -> None:
         self.assertEqual(self.make("failure")._compute_reward(True), 0.0)
 
-    @unittest.expectedFailure
     def test_self_reported_success_without_task_evidence_scores_zero(self) -> None:
-        """The reward is the agent's own terminate status; PR 4 must check state."""
-        self.assertEqual(self.make("success")._compute_reward(True), 0.0)
+        """A terminate flag with no passing status probe is not success."""
+        self.assertEqual(self.make("success", verified=False)._compute_reward(True), 0.0)
+
+    def test_success_with_passing_status_probe_scores_one(self) -> None:
+        self.assertEqual(self.make("success", verified=True)._compute_reward(True), 1.0)
 
 
 class ReferenceHashTests(unittest.TestCase):
@@ -159,3 +165,31 @@ class ReferenceHashTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DesktopTaskStatusTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tasks = _load_module(
+            "adversarial_desktop_tasks", DESKTOP / "core" / "tasks.py"
+        )
+
+    def test_every_task_exposes_a_status_probe(self) -> None:
+        self.assertEqual(len(self.tasks.TASKS), 3)
+        for task in self.tasks.TASKS:
+            self.assertTrue(task.get("verify_command"), task["expected_output"])
+
+    def test_probe_requires_an_explicit_verified_line(self) -> None:
+        task = {"verify_command": "check"}
+        self.assertTrue(
+            self.tasks.verify_task(task, lambda command: ("VERIFIED\n", None))
+        )
+        self.assertFalse(
+            self.tasks.verify_task(task, lambda command: ("NOT_VERIFIED\n", None))
+        )
+        self.assertFalse(
+            self.tasks.verify_task(task, lambda command: "VERIFIED but not on its own line")
+        )
+        self.assertFalse(
+            self.tasks.verify_task(task, lambda command: (_ for _ in ()).throw(RuntimeError()))
+        )

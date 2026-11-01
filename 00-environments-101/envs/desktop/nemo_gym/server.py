@@ -31,7 +31,7 @@ _parent = str(Path(__file__).resolve().parents[1])
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 from core.desktop import DesktopController  # noqa: E402
-from core.tasks import TASKS  # noqa: E402
+from core.tasks import TASKS, verify_task  # noqa: E402
 
 load_dotenv()
 
@@ -238,22 +238,28 @@ class DesktopResourcesServer(SimpleResourcesServer):
     # -- verify --
 
     async def verify(self, body: DesktopVerifyRequest) -> BaseVerifyResponse:
-        """Reward = 1.0 if the agent called terminate(status='success'), else 0.0.
+        """Reward 1.0 only when the task's status probe passes.
 
-        For richer grading, override this to inspect ground_truth or scan
-        function_call_outputs for an expected substring.
+        A terminate function call is not success: the probe runs against the
+        most recent session's sandbox and checks the artefact the task asks
+        the agent to produce.
         """
         reward = 0.0
-        for item in body.response.output:
-            if hasattr(item, "type") and item.type == "function_call":
-                # Function name and arguments
-                name = getattr(item, "name", "")
-                if name == "terminate":
-                    args = getattr(item, "arguments", "") or ""
-                    if "success" in args:
-                        reward = 1.0
-                        break
+        task = next((t for t in TASKS if t["expected_output"] == self._expected(body)), None)
+        if task is not None and self.sessions:
+            ctrl = list(self.sessions.values())[-1].get("ctrl")
+            if ctrl is not None:
+                reward = 1.0 if verify_task(task, ctrl.run_command) else 0.0
         return BaseVerifyResponse(**body.model_dump(), reward=reward)
+
+    @staticmethod
+    def _expected(body: DesktopVerifyRequest) -> str:
+        if not body.ground_truth:
+            return ""
+        gt = body.ground_truth[0] if isinstance(body.ground_truth, list) else body.ground_truth
+        if isinstance(gt, dict):
+            return str(gt.get("expected_output", ""))
+        return str(gt)
 
 
 if __name__ == "__main__":

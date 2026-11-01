@@ -43,6 +43,8 @@ configured `display_width_px` × `display_height_px`. If the model emits
 
 import base64
 import os
+import sys
+from pathlib import Path
 import time
 from typing import Any, List, Optional, Tuple
 from uuid import uuid4
@@ -130,6 +132,12 @@ def _split_modifiers(mod_text: Optional[str]) -> List[str]:
     if not mod_text:
         return []
     return [_MODIFIER_ALIAS.get(p.strip().lower(), p.strip().lower()) for p in mod_text.split("+")]
+
+
+_ENV_ROOT = str(Path(__file__).resolve().parents[2])
+if _ENV_ROOT not in sys.path:
+    sys.path.insert(0, _ENV_ROOT)
+from core.tasks import verify_task  # noqa: E402
 
 
 class DesktopEnvironment(MCPEnvironment):
@@ -450,6 +458,7 @@ class DesktopEnvironment(MCPEnvironment):
         self._resolution = resolution
         self._terminated = False
         self._terminate_status = None
+        self._verify_command = str(kwargs.get("verify_command", ""))
 
         if app in APP_PRESETS:
             install_cmds, launch_cmd, wait_ms = APP_PRESETS[app]
@@ -518,6 +527,16 @@ class DesktopEnvironment(MCPEnvironment):
             },
         )
 
+    def _terminal_reward(self) -> float:
+        if self._terminate_status != "success":
+            return 0.0
+        if not self._sandbox or not self._verify_command:
+            return 0.0
+        return 1.0 if verify_task(
+            {"verify_command": self._verify_command},
+            lambda command: self._sandbox.commands.run(command, timeout=60).stdout,
+        ) else 0.0
+
     def step(
         self,
         action: Action,
@@ -529,7 +548,7 @@ class DesktopEnvironment(MCPEnvironment):
         if self._terminated:
             obs = Observation(
                 done=True,
-                reward=1.0 if self._terminate_status == "success" else 0.0,
+                reward=self._terminal_reward(),
                 metadata={**(obs.metadata or {}), "terminate_status": self._terminate_status},
             )
         return obs
@@ -545,7 +564,7 @@ class DesktopEnvironment(MCPEnvironment):
         if self._terminated:
             obs = Observation(
                 done=True,
-                reward=1.0 if self._terminate_status == "success" else 0.0,
+                reward=self._terminal_reward(),
                 metadata={**(obs.metadata or {}), "terminate_status": self._terminate_status},
             )
         return obs

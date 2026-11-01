@@ -238,10 +238,9 @@ class DesktopORS(Environment):
     def get_prompt(self):
         app = self.task_spec.get("app", "desktop")
         res = self.task_spec.get("resolution", [1024, 768])
-        instruction = self.task_spec.get(
-            "instruction",
+        instruction = self.task_spec.get("instruction") or self.task_spec.get("task") or (
             "Use the desktop tools to complete the task. When finished, call "
-            "terminate(status='success'); on giving up, terminate(status='failure').",
+            "terminate(status='success'); on giving up, terminate(status='failure')."
         )
         return [TextBlock(text=(
             f"You are operating a Linux desktop ({app}, {res[0]}x{res[1]}). "
@@ -483,10 +482,21 @@ class DesktopORS(Environment):
 
     @tool
     def terminate(self, params: _Terminate) -> ToolOutput:
-        """End the episode with `status` ('success' or 'failure'). Reward is 1.0 on success, else 0.0."""
+        """End the episode; success is paid only when the task's status probe passes."""
         self._terminated = True
         self._terminate_status = params.status
-        reward = 1.0 if params.status == "success" else 0.0
+        reward = 0.0
+        if params.status == "success" and self._sandbox is not None:
+            task = self.task_spec
+            if not task.get("verify_command"):
+                task = next(
+                    (t for t in TASKS if t["expected_output"] == task.get("expected_output")),
+                    {},
+                )
+            reward = 1.0 if verify_task(
+                task,
+                lambda command: self._sandbox.commands.run(command, timeout=60).stdout,
+            ) else 0.0
         return ToolOutput(
             blocks=[TextBlock(text=f"Episode terminated: {params.status}")],
             metadata={"terminate_status": params.status},

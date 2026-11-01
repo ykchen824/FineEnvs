@@ -72,7 +72,7 @@ Wordle is also the *cross-domain proof*: same training and rollout patterns work
 ### Desktop Computer-Use (multi-turn, vision-driven)
 - **What the model does:** sees a screenshot of a full Linux desktop and drives the mouse/keyboard with tool calls until the task is done.
 - **Tools (19):** mirror Anthropic's `computer_20251124` schema — `screenshot`, `left/right/middle/double/triple_click`, `mouse_move`, `left_click_drag`, `left_mouse_down/up`, `scroll`, `type`, `key`, `hold_key`, `wait`, `terminate`, `run_command`, `cursor_position`, `get_screen_size`. Coordinates are `[x, y]` pixel arrays so OpenAI Operator and Qwen3-VL output drives the env with minimal token-level adaptation.
-- **Why it's interesting:** real cloud VM (E2B Desktop), screenshots returned as **MCP image blocks** (the model sees pixels, not base64 text), terminal reward via `terminate(status)`. Goes well beyond text-only envs.
+- **Why it's interesting:** real cloud VM (E2B Desktop), screenshots returned as **MCP image blocks** (the model sees pixels, not base64 text), and the three tasks end in a status file the verifier inspects (`/tmp/example-domain.html`, `/tmp/hello-rl.txt`, `/tmp/calc-result.csv`) instead of trusting `terminate(success)`. Goes well beyond text-only envs.
 
 ---
 

@@ -54,7 +54,7 @@ _parent = str(Path(__file__).resolve().parents[1])
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 from core.desktop import DesktopController  # noqa: E402
-from core.tasks import TASKS  # noqa: E402
+from core.tasks import TASKS, verify_task  # noqa: E402
 
 load_dotenv()
 
@@ -84,6 +84,7 @@ class DesktopSkyRLEnv(BaseTextEnv):
         self,
         task: str = "",
         expected_output: str = "",
+        verify_command: str = "",
         app: str = "firefox",
         resolution: tuple = (1024, 768),
         max_turns: int = 8,
@@ -96,6 +97,7 @@ class DesktopSkyRLEnv(BaseTextEnv):
         self._resolution = resolution
         self._task = task
         self._expected_output = expected_output
+        self._verify_command = verify_command
         self.max_turns = max_turns
         self._ctrl: Optional[DesktopController] = None
         self.last_output = ""
@@ -196,11 +198,11 @@ class DesktopSkyRLEnv(BaseTextEnv):
         raise ValueError(f"unknown action tag: {name}")
 
     def _compute_reward(self, terminated: bool) -> float:
-        if not terminated:
+        if not terminated or self._ctrl is None:
             return 0.0
-        if self._ctrl and self._ctrl.terminate_status == "success":
-            return 1.0
-        return 0.0
+        if self._ctrl.terminate_status != "success":
+            return 0.0
+        return 1.0 if verify_task({"verify_command": self._verify_command}, self._ctrl.run_command) else 0.0
 
 
 # Register

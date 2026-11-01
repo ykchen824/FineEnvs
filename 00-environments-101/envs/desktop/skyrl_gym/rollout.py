@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(REPO_ROOT / ".env")
 
 from env import DesktopSkyRLEnv  # noqa: E402
+from core.tasks import TASKS  # noqa: E402
 
 MODEL = os.environ.get("ROLLOUT_MODEL", "Qwen/Qwen3-VL-8B-Instruct:novita")
 MAX_TURNS = int(os.environ.get("MAX_TURNS", "5"))
@@ -60,8 +61,15 @@ def main() -> int:
     print(f"Model:         {MODEL}")
     print("=" * 80)
 
-    env = DesktopSkyRLEnv(task=TASK, app="firefox", max_turns=MAX_TURNS)
-    prompt = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": TASK}]
+    task = TASKS[0]
+    env = DesktopSkyRLEnv(
+        task=task["task"],
+        expected_output=task["expected_output"],
+        verify_command=task["verify_command"],
+        app=task["app"],
+        max_turns=MAX_TURNS,
+    )
+    prompt = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": task["task"]}]
     messages, info = env.init(prompt)
 
     # Initial screenshot for the model

@@ -96,6 +96,7 @@ class NayanaEnvironment(Environment):
         self.catalog = catalog if catalog is not None else configured_catalog()
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._task = None
+        self._graded: set[str] = set()
         self.judge = judge
 
     def list_splits(self):
@@ -143,6 +144,11 @@ class NayanaEnvironment(Environment):
     def step(self, action: NayanaAction, timeout_s=None):
         if self._task is None or self._state.step_count:
             raise RuntimeError("Reset before submitting a single answer")
+        task_id = self._task["task_id"]
+        if task_id in self._graded:
+            raise RuntimeError(
+                "This task has already been graded; load a different task"
+            )
         family = self._task["family"]
         policy_id = ""
         if family == "descriptive_vqa":
@@ -173,6 +179,7 @@ class NayanaEnvironment(Environment):
                     **official_metrics(action.answer, self._task["reference"]),
                 }
         self._state.step_count = 1
+        self._graded.add(task_id)
         return self._observation(
             done=True, reward=reward, metrics=metrics, grading_policy_id=policy_id
         )

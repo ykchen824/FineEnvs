@@ -1,9 +1,8 @@
 """Playground with independent per-browser task selection.
 
-Mirrors the OCR environment's interaction: pick a task, answer it, see the score and only
-then the reference. The OpenEnv discovery and observation APIs never return a reference;
-this deliberately reveals it after grading, which is what makes the playground useful for
-judging whether a reward is fair.
+Mirrors the OCR environment's interaction: pick a task, answer it, see the score. The
+reference is not returned: the playground is a scoring UI, not an answer oracle, and the
+OpenEnv discovery and observation APIs never return a reference either.
 """
 
 import random
@@ -25,6 +24,7 @@ TASK_LABELS = [
 class Playground:
     def __init__(self, catalog):
         self.catalog = catalog
+        self._graded: set[str] = set()
 
     def choose(self, split, language, family, current=None, direction=0, index=None):
         empty = (None, "", "No tasks in this selection.", "", "", "", "")
@@ -64,6 +64,8 @@ class Playground:
     def submit(self, task_id, answer):
         if not task_id:
             return "Select a task first.", ""
+        if task_id in self._graded:
+            raise gr.Error("This task has already been graded; load another task.")
         environment = AsrEnvironment(self.catalog)
         environment.reset(task_id=task_id)
         # The environment returns the observation itself, carrying reward and metrics.
@@ -75,8 +77,10 @@ class Playground:
                 parts.append(f"{key.upper()} {metrics[key]:.3f}")
         if metrics.get("exact_match"):
             parts.append("exact match")
-        reference = self.catalog.get(task_id)["reference"]
-        return " · ".join(parts), reference
+        self._graded.add(task_id)
+        # Do not return the reference: the playground is a scoring UI, not an
+        # answer oracle.
+        return " · ".join(parts), ""
 
 
 def build_ui(web_manager, action_fields, metadata, is_chat_env, title, quick_start_md):

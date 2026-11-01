@@ -244,3 +244,28 @@ def test_rebuilding_a_snapshot_in_place_keeps_every_asset_registered(tmp_path):
         ).fetchone()[0]
         assets = db.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
     assert assets > 0 and missing == 0
+
+
+def test_a_task_is_graded_once_per_environment(snapshot):
+    catalog, _ = snapshot
+    env = AsrEnvironment(catalog)
+    task = catalog.at("test", 0)
+    env.reset(task_id=task["task_id"])
+    env.step(AsrAction(transcript=task["reference"]))
+    env.reset(task_id=task["task_id"])
+    with pytest.raises(ValueError, match="already been graded"):
+        env.step(AsrAction(transcript=task["reference"]))
+
+
+def test_playground_submit_hides_the_reference_and_grades_each_task_once(snapshot):
+    catalog, _ = snapshot
+    from multilingual_asr.server.gradio_ui import Playground
+
+    playground = Playground(catalog)
+    chosen = playground.choose("test", catalog.languages[0], "language_id")
+    task_id = chosen[1]
+    reference = catalog.get(task_id)["reference"]
+    summary, revealed = playground.submit(task_id, reference)
+    assert revealed == "" and "Reward" in summary
+    with pytest.raises(Exception, match="already been graded"):
+        playground.submit(task_id, reference)

@@ -70,6 +70,7 @@ class AsrEnvironment(Environment):
         self.reward_unit = reward_unit(unit)
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._task = None
+        self._graded: set[str] = set()
 
     def list_splits(self):
         # A frozen evaluation set is a split here, so a client can discover it.
@@ -143,10 +144,16 @@ class AsrEnvironment(Environment):
         if self._task is None:
             raise ValueError("Call reset before step")
         task = self._task
+        task_id = task["task_id"]
+        if task_id in self._graded:
+            raise ValueError(
+                "This task has already been graded; load a different task"
+            )
         # One answer per episode: a second step must not re-grade a consumed task.
         self._task = None
         self._state.step_count += 1
         reward, metrics = score(task, action.transcript, self.reward_unit)
+        self._graded.add(task_id)
         return self._observation(task, reward=reward, metrics=metrics, done=True)
 
     @property

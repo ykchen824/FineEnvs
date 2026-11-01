@@ -48,3 +48,15 @@ def test_same_task_independent_episodes_and_failed_reset_invalidates_state(tmp_p
         a.reset(task_id="unknown")
     with pytest.raises(RuntimeError, match="Reset"):
         a.step(NayanaAction(answer=""))
+
+
+def test_a_task_is_graded_once_per_environment(tmp_path):
+    make_fixture(tmp_path)
+    catalog = Catalog(tmp_path)
+    env = NayanaEnvironment(catalog)
+    task = catalog.at("train", 0)
+    env.reset(task_id=task["task_id"])
+    env.step(NayanaAction(answer=task["reference"]))
+    env.reset(task_id=task["task_id"])
+    with pytest.raises(RuntimeError, match="already been graded"):
+        env.step(NayanaAction(answer=task["reference"]))

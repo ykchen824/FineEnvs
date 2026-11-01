@@ -4,7 +4,7 @@ The task splits already exist and are published. You only need this directory if
 
 | split | tasks | countries | where |
 |---|---:|---:|---|
-| `eval` | 200 | 73, capped at 4 each | `../env/tasks/eval_pano_v3.jsonl`, committed |
+| `eval` | 200 | 73, capped at 4 each | private; set `GEOGUESSER_TASKS_EVAL` (the answer key is not committed) |
 | `train` | 3,452 | 132 | [`HuggingEnvs/geoguesser-tasks`](https://huggingface.co/datasets/HuggingEnvs/geoguesser-tasks) |
 | imagery | 86,366 panoramas | n/a | [`HuggingEnvs/geoguesser-panos`](https://huggingface.co/buckets/HuggingEnvs/geoguesser-panos), 22 GB |
 

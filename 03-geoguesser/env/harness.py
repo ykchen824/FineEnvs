@@ -24,6 +24,7 @@ A task is a plain dict, so it survives serialisation into an `EpisodeRecord`:
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 from typing import Any, Callable, Iterator
 
@@ -245,7 +246,7 @@ def load_tasks(
     Examples:
 
     ```python
-    tasks = load_tasks("tasks/eval_pano_v3.jsonl", split="eval")
+    tasks = load_tasks(os.environ["GEOGUESSER_TASKS_EVAL"], split="eval")
     tasks = load_tasks("tasks/train_pano_v3.jsonl", repeat=16, split="train")
     ```
     """

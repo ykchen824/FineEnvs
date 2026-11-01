@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "approval_label": "audit/approved",
+  "description": "Reward-critical assets for the reward-hacking audit (PR 1). A change to any matching path needs the audit/approved label; see tools/reward_audit/README.md.",
+  "protected": {
+    "tests": [
+      "**/tests/**",
+      "**/test_*.py"
+    ],
+    "reward_logic": [
+      "**/rubric.py",
+      "**/rewards.py",
+      "**/reward*.py",
+      "**/scoring.py",
+      "**/gate.py",
+      "**/quality.py",
+      "**/pairwise_judge.py",
+      "**/judge.py",
+      "07-simulation-environments/portsim-v1/envs/berth_planning/core/berth_core/check.py",
+      "00-environments-101/envs/**/core/**",
+      "00-environments-101/envs/**/env.py",
+      "00-environments-101/envs/**/server*.py",
+      "00-environments-101/envs/**/server/**",
+      "01-latex-ocr/envs/latex_ocr/server/**",
+      "02-watercolour/envs/watercolour/core/**",
+      "02-watercolour/envs/watercolour/openenv/**",
+      "02-watercolour/envs/watercolour/hpsv3/**",
+      "03-geoguesser/env/server/**",
+      "04-smoldataenvs/scripts/**",
+      "05-multi-harness-rl/envs/**",
+      "05-multi-harness-rl/train/**",
+      "06-multilingual/ocr/envs/nayana_ocr/server/**",
+      "06-multilingual/asr/envs/multilingual_asr/server/**",
+      "06-multilingual/ocr/envs/nayana_ocr/data/**",
+      "06-multilingual/asr/envs/multilingual_asr/data/**",
+      "07-simulation-environments/**/verifier/**",
+      "07-simulation-environments/**/verifiers/**",
+      "07-simulation-environments/portsim-v1/envs/berth_planning/agentenv/berth_agentenv/server.py",
+      "07-simulation-environments/portsim-v1/envs/berth_planning/core/**",
+      "07-simulation-environments/portsim-live/envs/port_week/core/**",
+      "07-simulation-environments/airopsenv/envs/airops/core/**"
+    ],
+    "evaluation": [
+      "**/eval/**",
+      "**/eval_*.py",
+      "**/evaluate.py",
+      "**/verify*.py"
+    ],
+    "reference_data": [
+      "03-geoguesser/env/tasks/**",
+      "05-multi-harness-rl/data/**",
+      "05-multi-harness-rl/prepare.py",
+      "06-multilingual/ocr/data/eval-*.json",
+      "06-multilingual/ocr/data/corpus-manifest.json",
+      "06-multilingual/asr/data/eval-*.json",
+      "06-multilingual/asr/data/corpus-manifest.json",
+      "07-simulation-environments/**/tasks/**",
+      "07-simulation-environments/**/fixtures/**",
+      "02-watercolour/envs/watercolour/core/fixtures/**"
+    ],
+    "audit_tooling": [
+      "tools/reward_audit/**",
+      ".github/workflows/**"
+    ]
+  }
+}

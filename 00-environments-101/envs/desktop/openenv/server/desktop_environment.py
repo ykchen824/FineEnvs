@@ -43,8 +43,6 @@ configured `display_width_px` × `display_height_px`. If the model emits
 
 import base64
 import os
-import sys
-from pathlib import Path
 import time
 from typing import Any, List, Optional, Tuple
 from uuid import uuid4
@@ -134,10 +132,16 @@ def _split_modifiers(mod_text: Optional[str]) -> List[str]:
     return [_MODIFIER_ALIAS.get(p.strip().lower(), p.strip().lower()) for p in mod_text.split("+")]
 
 
-_ENV_ROOT = str(Path(__file__).resolve().parents[2])
-if _ENV_ROOT not in sys.path:
-    sys.path.insert(0, _ENV_ROOT)
-from core.tasks import verify_task  # noqa: E402
+def _probe(run_command, command: str) -> bool:
+    """The openenv image does not ship the shared core package; keep the probe local."""
+    if not command:
+        return False
+    try:
+        result = run_command(command)
+    except Exception:  # noqa: BLE001
+        return False
+    text = getattr(result, "stdout", None) or str(result or "")
+    return any(line.strip() == "VERIFIED" for line in text.splitlines())
 
 
 class DesktopEnvironment(MCPEnvironment):
@@ -532,9 +536,9 @@ class DesktopEnvironment(MCPEnvironment):
             return 0.0
         if not self._sandbox or not self._verify_command:
             return 0.0
-        return 1.0 if verify_task(
-            {"verify_command": self._verify_command},
+        return 1.0 if _probe(
             lambda command: self._sandbox.commands.run(command, timeout=60).stdout,
+            self._verify_command,
         ) else 0.0
 
     def step(

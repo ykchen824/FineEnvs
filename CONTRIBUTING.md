@@ -106,6 +106,11 @@ python3 tools/build_index.py --check    # generated tables are current
 uv run python rollout.py                # your env actually runs
 ```
 
+**Reward-critical changes need a maintainer's approval label.** CI fails a pull request that
+changes a test, grader, rubric, evaluator, reference-data file or the audit tooling without the
+`audit/approved` label. The label records that a maintainer reviewed the reward-critical diff; it is
+not a merge approval. See [`tools/reward_audit/README.md`](./tools/reward_audit/README.md).
+
 **Read one trajectory by hand.** Did the model see what you expected? Did the tool returns make
 sense? Did the reward fire? If a human can't read the trajectory and tell whether the model did
 well, neither can a reward function — and no amount of training will surface that.

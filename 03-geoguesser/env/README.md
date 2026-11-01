@@ -39,7 +39,7 @@ uv sync
 hf sync hf://buckets/HuggingEnvs/geoguesser-panos/panos ./data/panos
 
 # Confirm the split is complete before trusting any number it produces
-python ../dataset/verify_offline.py tasks/eval_pano_v3.jsonl --check
+python ../dataset/verify_offline.py "$GEOGUESSER_TASKS_EVAL" --check
 #   200 tasks · 4673 frames · 0 tasks incomplete · 0 frames absent
 
 bash serve.sh          # play at http://localhost:8000/web/

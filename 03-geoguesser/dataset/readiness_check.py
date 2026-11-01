@@ -27,6 +27,7 @@ import concurrent.futures
 import hashlib
 import json
 import math
+import os
 import pathlib
 import random
 import statistics
@@ -52,9 +53,16 @@ from geoguesser_env.server.scoring import distance_score, haversine_km  # noqa: 
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1] / "env"
-_CANDIDATE_INDEXES = (
-    ROOT / "tasks" / "eval_pano_v3.jsonl",
-    ROOT / "tasks" / "pano_v1.jsonl",
+_CANDIDATE_INDEXES = tuple(
+    path
+    for path in (
+        pathlib.Path(os.environ["GEOGUESSER_TASKS_EVAL"])
+        if os.environ.get("GEOGUESSER_TASKS_EVAL")
+        else None,
+        ROOT / "tasks" / "eval_pano_v3.jsonl",
+        ROOT / "tasks" / "pano_v1.jsonl",
+    )
+    if path is not None
 )
 INDEX = next((p for p in _CANDIDATE_INDEXES if p.exists()), _CANDIDATE_INDEXES[-1])
 """Audit the frozen eval split when it exists.

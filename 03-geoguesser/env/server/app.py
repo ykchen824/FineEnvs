@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-# Fallback index, used only when no named split resolves. It is the eval split
-# on purpose: the legacy `pano_v1.jsonl` predates the contamination rule and has
-# a task 603 m from an eval start, so it is a demo index, never a train split.
-INDEX_PATH = os.getenv("GEOGUESSER_INDEX", str(_ROOT / "tasks" / "eval_pano_v3.jsonl"))
+# Legacy single-index override. The eval answer key is intentionally not
+# committed; set GEOGUESSER_TASKS_EVAL (preferred) or GEOGUESSER_INDEX to the
+# private file. The legacy `pano_v1.jsonl` is a demo index, never a train split.
+INDEX_PATH = os.getenv("GEOGUESSER_INDEX")
 CACHE_DIR = os.getenv("GEOGUESSER_CACHE", str(_ROOT / "data" / "panos"))
 # Named splits, as (environment variable, repo-relative default). Each is
 # optional and a split whose file is absent is simply not offered, so the same
@@ -122,7 +122,13 @@ def resolve_splits() -> tuple[dict[str, str], str]:
         splits[name] = path
 
     if not splits:
-        return {"train": INDEX_PATH}, "train"
+        if INDEX_PATH and pathlib.Path(INDEX_PATH).exists():
+            return {"train": INDEX_PATH}, "train"
+        raise RuntimeError(
+            "No task index: set GEOGUESSER_TASKS_EVAL (preferred) or "
+            "GEOGUESSER_INDEX to the private eval task file. The eval answer "
+            "key is deliberately not committed to this repository."
+        )
 
     default = DEFAULT_SPLIT or ("train" if "train" in splits else next(iter(splits)))
     if default not in splits:

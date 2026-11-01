@@ -53,6 +53,7 @@ BENCH_CREDIT = (
 class Playground:
     def __init__(self, catalog):
         self.catalog = catalog
+        self._graded: set[str] = set()
 
     def choose(self, split, language, family, current=None, direction=0, index=None):
         count = self.catalog.group_count(split, language, family)
@@ -107,6 +108,8 @@ class Playground:
     def submit(self, task_id, answer):
         if not task_id:
             raise gr.Error("Load a task first.")
+        if task_id in self._graded:
+            raise gr.Error("This task has already been graded; load another task.")
         env = NayanaEnvironment(self.catalog)
         try:
             env.reset(task_id=task_id)
@@ -133,11 +136,12 @@ class Playground:
                 summary += " · Class-aware region F1 averaged over IoU 0.50–0.95"
             if result.metrics.get("overlong") or result.metrics.get("invalid_answer"):
                 summary += "\nAnswer exceeded the length limit."
-            # This demonstration endpoint reveals the reference after grading,
-            # like LaTeX OCR. OpenEnv observations/discovery still exclude it.
+            self._graded.add(task_id)
+            # The reference is deliberately not returned: the playground is a
+            # scoring UI, not an answer oracle.
             return (
                 summary,
-                self.catalog.get(task_id)["reference"],
+                "",
                 {
                     "reward": result.reward,
                     **result.metrics,
@@ -319,7 +323,7 @@ def build_ui(web_manager, action_fields, metadata, is_chat_env, title, quick_sta
                 "VQA uses the original page. Full-page references join the corpus's text regions using geometric column and reading order, "
                 "with right-to-left columns for Arabic. This is annotation-based OCR, not table-format reconstruction. "
                 "Pages with incomplete or overlapping text-region annotations are excluded from full-page OCR. "
-                "The reference is revealed only after you score your answer in this playground.\n\n"
+                "The reference is not shown in this playground; score-only.\n\n"
                 "The `indic_ocr_bench_test` and `indic_ocr_bench_small` splits are Sarvam Indic OCR Bench: "
                 "human-reviewed text blocks in 23 languages, scored as Section OCR with exactly the same reward. "
                 "The benchmark's own CER and WER, computed by its official scorer, are reported alongside. "

@@ -97,9 +97,9 @@ def test_playground_navigation_resets_reference_and_scores_selected_task(tmp_pat
     assert first[6]["value"] == "" and first[6]["rtl"] is True
     reference = playground.catalog.get(first[0])["reference"]
     summary, revealed, metrics = playground.submit(first[0], reference)
-    assert (
-        revealed == reference and metrics["reward"] == 1.0 and "Exact match" in summary
-    )
+    assert revealed == "" and metrics["reward"] == 1.0 and "Exact match" in summary
+    with pytest.raises(Exception, match="already been graded"):
+        playground.submit(first[0], reference)
     second = playground.choose("train", "ar", "page_ocr", first[0], 1)
     assert first[0] != second[0] and second[6]["value"] == ""
     previous = playground.choose("train", "ar", "page_ocr", second[0], -1)

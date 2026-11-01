@@ -48,6 +48,9 @@ python -m eval.evaluate --mode blackbox \
 
 `--server` can point to your local server or the matching deployed Space: Harbor for `blackbox`, SETA for `whitebox`. For a remote Harbor server, also pass `--env-llm-url` with an inference endpoint reachable from that server. Its localhost is different from your machine's localhost. The model endpoint must support the token capture checks used by Harbor.
 
+For a remote **whitebox** server, `start_task` and `grade` are administrative tools: set `SMOLDATAENV_ADMIN_TOKEN` on the server and in the evaluator's environment. Without the token the model-callable path is denied, which is the point; the trusted evaluator passes it.
+
+
 ## Read the result, then retry failures
 
 | File | What to look for |

@@ -28,6 +28,7 @@ def tool(ws, name, **arguments):
 
 def test_whitebox_websocket_retains_episode_and_closes_sandbox(monkeypatch):
     monkeypatch.setenv("ENABLE_WEB_INTERFACE", "false")
+    monkeypatch.setenv("SMOLDATAENV_ADMIN_TOKEN", "test-admin")
     from fastapi.testclient import TestClient
     from smoldataenv_whitebox import server
 
@@ -56,9 +57,13 @@ def test_whitebox_websocket_retains_episode_and_closes_sandbox(monkeypatch):
         with client.websocket_connect("/ws") as ws:
             initial = exchange(ws, "reset", {"split": "test", "task_name": "demo"})
             assert initial["metadata"]["instruction"] == "Solve demo"
-            selected = tool(ws, "start_task", split="test", index=0)
+            selected = tool(ws, "start_task", token="test-admin", split="test", index=0)
             assert selected["instruction"] == "Solve demo"
-            grade = tool(ws, "grade")
+            denied = exchange(
+                ws, "step", {"type": "call_tool", "tool_name": "grade", "arguments": {}}
+            )
+            assert denied.get("error")
+            grade = tool(ws, "grade", token="test-admin")
             assert grade == {"reward": 1.05, "correctness": 1.0, "tool_calls": 15}
     sandbox.kill.assert_called_once()
 

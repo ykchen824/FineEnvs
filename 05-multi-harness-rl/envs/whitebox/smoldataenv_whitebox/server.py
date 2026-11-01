@@ -27,15 +27,27 @@ class WhiteboxEnvironment(TaskCatalog, MCPEnvironment):
                 mcp.tool(method)
 
         @mcp.tool
-        def start_task(split: str = "test", index: int = 0) -> dict:
-            """Select a task and stage its files in a new sandbox."""
+        def start_task(
+            token: str = "", split: str = "test", index: int = 0
+        ) -> dict:
+            """Select a task and stage its files in a new sandbox.
+
+            Administrative, not model-callable: the trusted harness must pass
+            the server's SMOLDATAENV_ADMIN_TOKEN.
+            """
+            self._require_admin(token)
             task = self.get_task(split, index)
             observation = self.reset(split=split, task_name=task["name"])
             return observation.metadata
 
         @mcp.tool
-        def grade() -> dict:
-            """Grade the final answer and release the sandbox."""
+        def grade(token: str = "") -> dict:
+            """Grade the final answer and release the sandbox.
+
+            Administrative, not model-callable: the trusted harness must pass
+            the server's SMOLDATAENV_ADMIN_TOKEN.
+            """
+            self._require_admin(token)
             value = self.episode.get_reward()
             return {
                 "reward": value if math.isfinite(value) else None,
@@ -44,6 +56,15 @@ class WhiteboxEnvironment(TaskCatalog, MCPEnvironment):
             }
 
         super().__init__(mcp)
+
+    @staticmethod
+    def _require_admin(token: str) -> None:
+        expected = os.environ.get("SMOLDATAENV_ADMIN_TOKEN", "")
+        if not expected or not token or token != expected:
+            raise PermissionError(
+                "This tool is for the trusted harness; set "
+                "SMOLDATAENV_ADMIN_TOKEN and pass it explicitly."
+            )
 
     def reset(
         self, seed=None, episode_id=None, split="train", task_name=None, **kwargs

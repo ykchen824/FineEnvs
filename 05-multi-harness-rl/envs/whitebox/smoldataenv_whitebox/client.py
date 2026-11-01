@@ -1,6 +1,7 @@
 """TRL's tool interface backed by the local server or the same server on a Space."""
 
 import math
+import os
 from pathlib import Path
 
 from openenv.core.mcp_client import MCPToolClient
@@ -11,6 +12,7 @@ class RemoteBashEnvironment:
         self._client = MCPToolClient(server, message_timeout_s=900).sync()
         self._calls = 0
         self._submitted = False
+        self._admin_token = os.environ.get("SMOLDATAENV_ADMIN_TOKEN", "")
 
     def reset(self, folder, **kwargs):
         folder = Path(folder)
@@ -92,7 +94,7 @@ class RemoteBashEnvironment:
         return result
 
     def get_reward(self):
-        result = self._client.call_tool("grade")
+        result = self._client.call_tool("grade", token=self._admin_token)
         self._calls = result["tool_calls"]
         self._correctness = result["correctness"]
         return result["reward"] if result["reward"] is not None else math.nan

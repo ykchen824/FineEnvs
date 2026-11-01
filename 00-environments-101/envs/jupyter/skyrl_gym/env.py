@@ -57,6 +57,7 @@ if _ENV_ROOT not in sys.path:
     sys.path.insert(0, _ENV_ROOT)
 from core.e2b_sandbox import E2BSandbox, CellResult  # noqa: E402
 from core.notebook_tracker import NotebookTracker  # noqa: E402
+from core.grading import last_line_matches  # noqa: E402
 from core.tasks import TASKS  # noqa: E402
 
 load_dotenv()
@@ -156,7 +157,7 @@ class JupyterSkyRLEnv(BaseTextEnv):
     def _compute_reward(self) -> float:
         if not self._expected_output:
             return 0.0
-        if self._expected_output.strip() in self.last_output.strip():
+        if last_line_matches(self._expected_output, self.last_output):
             return 1.0
         return 0.0
 

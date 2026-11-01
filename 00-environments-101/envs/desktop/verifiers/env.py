@@ -28,7 +28,7 @@ _parent = str(Path(__file__).resolve().parents[1])
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 from core.desktop import DesktopController  # noqa: E402
-from core.tasks import TASKS  # noqa: E402
+from core.tasks import TASKS, verify_task  # noqa: E402
 
 load_dotenv()
 
@@ -216,17 +216,18 @@ def create_verifiers_env():
     ])
 
     async def correctness(completion, answer, **kwargs) -> float:
-        # Reward 1.0 if the agent called terminate(status='success') and
-        # the expected_output appeared somewhere in the trajectory.
-        seen_success = False
-        seen_expected = False
-        for msg in completion or []:
-            content = msg.get("content", "") if isinstance(msg, dict) else str(msg)
-            if "Episode terminated: success" in content:
-                seen_success = True
-            if answer and answer.strip() in content:
-                seen_expected = True
-        return 1.0 if (seen_success and seen_expected) else (0.5 if seen_success else 0.0)
+        # A terminate message alone is not success: run the task's status probe
+        # against the shared desktop sandbox.
+        seen_success = any(
+            "Episode terminated: success"
+            in (msg.get("content", "") if isinstance(msg, dict) else str(msg))
+            for msg in (completion or [])
+        )
+        task = next((t for t in TASKS if t["expected_output"] == answer), None)
+        ctrl = getattr(_kit(), "_ctrl", None)
+        if not seen_success or task is None or ctrl is None:
+            return 0.0
+        return 1.0 if verify_task(task, ctrl.run_command) else 0.0
 
     rubric = vf.Rubric(funcs=[correctness])
 

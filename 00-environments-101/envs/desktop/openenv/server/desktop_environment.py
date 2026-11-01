@@ -132,6 +132,18 @@ def _split_modifiers(mod_text: Optional[str]) -> List[str]:
     return [_MODIFIER_ALIAS.get(p.strip().lower(), p.strip().lower()) for p in mod_text.split("+")]
 
 
+def _probe(run_command, command: str) -> bool:
+    """The openenv image does not ship the shared core package; keep the probe local."""
+    if not command:
+        return False
+    try:
+        result = run_command(command)
+    except Exception:  # noqa: BLE001
+        return False
+    text = getattr(result, "stdout", None) or str(result or "")
+    return any(line.strip() == "VERIFIED" for line in text.splitlines())
+
+
 class DesktopEnvironment(MCPEnvironment):
     """Cloud desktop environment backed by E2B Desktop sandbox."""
 
@@ -450,6 +462,7 @@ class DesktopEnvironment(MCPEnvironment):
         self._resolution = resolution
         self._terminated = False
         self._terminate_status = None
+        self._verify_command = str(kwargs.get("verify_command", ""))
 
         if app in APP_PRESETS:
             install_cmds, launch_cmd, wait_ms = APP_PRESETS[app]
@@ -518,6 +531,16 @@ class DesktopEnvironment(MCPEnvironment):
             },
         )
 
+    def _terminal_reward(self) -> float:
+        if self._terminate_status != "success":
+            return 0.0
+        if not self._sandbox or not self._verify_command:
+            return 0.0
+        return 1.0 if _probe(
+            lambda command: self._sandbox.commands.run(command, timeout=60).stdout,
+            self._verify_command,
+        ) else 0.0
+
     def step(
         self,
         action: Action,
@@ -529,7 +552,7 @@ class DesktopEnvironment(MCPEnvironment):
         if self._terminated:
             obs = Observation(
                 done=True,
-                reward=1.0 if self._terminate_status == "success" else 0.0,
+                reward=self._terminal_reward(),
                 metadata={**(obs.metadata or {}), "terminate_status": self._terminate_status},
             )
         return obs
@@ -545,7 +568,7 @@ class DesktopEnvironment(MCPEnvironment):
         if self._terminated:
             obs = Observation(
                 done=True,
-                reward=1.0 if self._terminate_status == "success" else 0.0,
+                reward=self._terminal_reward(),
                 metadata={**(obs.metadata or {}), "terminate_status": self._terminate_status},
             )
         return obs

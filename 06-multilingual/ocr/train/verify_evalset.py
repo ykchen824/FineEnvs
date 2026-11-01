@@ -108,13 +108,16 @@ def verify(
                         reencoded[entry["family"]] += 1
 
                 reference = catalog.get(task_id)["reference"]
-                if (
-                    hashlib.sha256(reference.encode()).hexdigest()
-                    != entry["reference_sha256"]
-                ):
-                    raise AssertionError(
-                        "reference no longer matches the frozen digest"
-                    )
+                # A single-letter MCQ answer is recoverable from an unsalted
+                # digest, so the public eval file deliberately omits it there.
+                if entry["family"] != "mcq_vqa":
+                    if (
+                        hashlib.sha256(reference.encode()).hexdigest()
+                        != entry["reference_sha256"]
+                    ):
+                        raise AssertionError(
+                            "reference no longer matches the frozen digest"
+                        )
 
                 oracle = step_with_judge_retry(client, reference)
                 if not oracle.done or float(oracle.reward) != 1.0:

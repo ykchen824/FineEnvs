@@ -35,6 +35,7 @@ if _ENV_ROOT not in sys.path:
     sys.path.insert(0, _ENV_ROOT)
 from core.e2b_sandbox import E2BSandbox, CellResult  # noqa: E402
 from core.notebook_tracker import NotebookTracker  # noqa: E402
+from core.grading import last_line_matches  # noqa: E402
 from core.tasks import TASKS  # noqa: E402
 
 load_dotenv()
@@ -270,7 +271,7 @@ def create_verifiers_env():
         if not completion:
             return 0.0
         last_content = completion[-1].get("content", "") if isinstance(completion[-1], dict) else str(completion[-1])
-        return 1.0 if answer.strip() in last_content.strip() else 0.0
+        return 1.0 if last_line_matches(answer, last_content) else 0.0
 
     rubric = vf.Rubric(funcs=[correctness])
 

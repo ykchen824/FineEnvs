@@ -70,7 +70,13 @@ def test_build_pins_served_reference_and_round_trips(corpus, tmp_path):
     assert record["evalset_version"] == EVALSET_VERSION
     assert record["failures"] == []
     assert record["snapshot_id"] == catalog.snapshot_id
-    assert all(len(e["reference_sha256"]) == 64 for e in record["tasks"])
+    for entry in record["tasks"]:
+        if entry["family"] == "mcq_vqa":
+            # A single-letter answer is recoverable by hashing A-Z; the public
+            # eval file must not carry that shortcut.
+            assert "reference_sha256" not in entry
+        else:
+            assert len(entry["reference_sha256"]) == 64
     assert all(e.get("asset_sha256") for e in record["tasks"])
 
     path = save(record, tmp_path / "eval.json")

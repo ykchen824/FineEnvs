@@ -205,7 +205,8 @@ def build(
         entry["document_id"] = task["document_id"]
         entry["unit"] = task["unit"]
         if not validate:
-            entry["reference_sha256"] = _reference_digest(task)
+            if entry["family"] != "mcq_vqa":
+                entry["reference_sha256"] = _reference_digest(task)
             kept[key] += 1
             chosen.append(entry)
             continue
@@ -222,7 +223,8 @@ def build(
                 }
             )
             continue
-        entry["reference_sha256"] = _reference_digest(served)
+        if entry["family"] != "mcq_vqa":
+            entry["reference_sha256"] = _reference_digest(served)
         entry["asset_sha256"] = served["asset_sha256"]
         entry["width"] = served["width"]
         entry["height"] = served["height"]

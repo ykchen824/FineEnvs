@@ -54,7 +54,8 @@ python -m eval.evaluate --mode blackbox \
 |---|---|
 | `summary.json` | Pass@1 and coverage, plus reward, tool and token averages; harness and difficulty breakdowns |
 | `pairs/*.json` | Each task/harness result, elapsed time and any ungraded error |
-| `identity.json` | Model/checkpoint, task identities, sampling and evaluator version |
+| `identity.json` | Model/checkpoint, task identities, sampling, evaluator version, git commit, dataset revisions and grader SHA-256 |
+| `provenance.jsonl` | Append-only run header, one record per task/harness attempt, and a footer with the re-hashed assets; secrets are redacted |
 | `progress.json` | Results completed so far |
 | `trackio/` | Local aggregate evaluation metrics |
 

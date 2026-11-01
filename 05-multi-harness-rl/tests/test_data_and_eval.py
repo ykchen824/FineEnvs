@@ -7,7 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from smoldataenv_whitebox.tasks import stage_task
 
-from eval.evaluate import summarize, write_json
+from eval import evaluate
+from eval.evaluate import build_identity, summarize, write_json
 
 
 def test_fixed_split_is_disjoint_and_keeps_the_training_mix():
@@ -60,3 +61,37 @@ def test_atomic_results_are_readable_after_replacement(tmp_path):
     write_json(target, {"correctness": 1})
     assert json.loads(target.read_text())["correctness"] == 1
     assert not target.with_suffix(".tmp").exists()
+
+
+def test_identity_records_stable_provenance_without_run_specific_fields(tmp_path):
+    args = SimpleNamespace(checkpoint="checkpoint-100", model="test-model", data=str(tmp_path))
+    tasks = [
+        {"name": "a", "difficulty": "medium", "instruction": "first task"},
+        {"name": "b", "difficulty": "hard", "instruction": "second task"},
+    ]
+    (tmp_path / "ready.json").write_text(
+        json.dumps({"grader_sha256": "a" * 64}), encoding="utf-8"
+    )
+    (tmp_path / "test_manifest.json").write_text(
+        json.dumps(
+            {
+                "source_dataset": "FineEnvs/SmolDataEnvs-harbor-test",
+                "expected_hub_revision": "b" * 40,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    identity = build_identity(args, tasks, ["whitebox"])
+
+    assert identity["grader_sha256"] == "a" * 64
+    assert identity["dataset_revisions"]["test"] == {
+        "source_dataset": "FineEnvs/SmolDataEnvs-harbor-test",
+        "source_revision": "b" * 40,
+    }
+    assert identity["task_set_sha256"] == evaluate.provenance.sha256_rows(
+        tasks, ("name", "instruction", "difficulty")
+    )
+    assert identity["git_commit"]
+    assert "run_id" not in identity
+    assert "started_at" not in identity

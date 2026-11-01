@@ -103,6 +103,10 @@ uv run scripts/train_grpo.py --dry-run   # the training rewards, without the tra
 uv run scripts/eval_pass1.py --dry-run   # the scoring path, without the GPU
 ```
 
+An eval writes `eval_results.json` and an append-only `eval_provenance.jsonl` next to it: run id,
+git commit, dataset and grader revisions plus hashes, sandbox image, each program, its stdout/stderr
+tail, prediction, reward and flags. Tokens are redacted before anything is written.
+
 ## Run it
 
 ```bash

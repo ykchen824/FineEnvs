@@ -66,6 +66,17 @@ def test_evaluation_keeps_grades_and_retries_only_missing_pairs(
     with pytest.raises(SystemExit) as error:
         evaluate.main()
     assert error.value.code == 2
+    trace = [
+        json.loads(line)
+        for line in (tmp_path / "provenance.jsonl").read_text().splitlines()
+    ]
+    assert trace[0]["type"] == "run_start"
+    assert trace[-1]["type"] == "run_end"
+    assert trace[-1]["valid"] is True
+    assert trace[0]["config"]["git_commit"]
+    assert trace[0]["config"]["task_set_sha256"]
+    assert any(record["type"] == "task" for record in trace)
+
     partial = json.loads((tmp_path / "summary.json").read_text())
     expected = 2 * len(harnesses)
     assert partial["graded"] == expected - 1

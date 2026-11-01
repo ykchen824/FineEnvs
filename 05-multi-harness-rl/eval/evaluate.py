@@ -5,11 +5,18 @@ import hashlib
 import inspect
 import json
 import math
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from smoldataenv_harbor.tasks import load_tasks
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PROVENANCE_DIR = _REPO_ROOT / "tools" / "run_provenance"
+if str(_PROVENANCE_DIR) not in sys.path:
+    sys.path.insert(0, str(_PROVENANCE_DIR))
+import provenance  # noqa: E402
 
 HARNESSES = ("opencode", "claude-code", "codex", "mini-swe-agent")
 
@@ -137,6 +144,57 @@ def whitebox_episode(args, index, task, harness):
         environment._close()
 
 
+def _manifest(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def dataset_revisions(data) -> dict:
+    """The pinned Hub revisions every split came from, when prepare.py ran."""
+    result = {}
+    for split in ("train", "test"):
+        manifest = _manifest(Path(data) / f"{split}_manifest.json")
+        result[split] = {
+            "source_dataset": manifest.get("source_dataset"),
+            "source_revision": manifest.get("source_revision")
+            or manifest.get("expected_hub_revision"),
+        }
+    return result
+
+
+def grader_sha256(data):
+    return _manifest(Path(data) / "ready.json").get("grader_sha256")
+
+
+def build_identity(args, tasks, harnesses) -> dict:
+    """The stable identity that makes an output directory non-reusable.
+
+    Deliberately contains no run id or timestamp: a resumed evaluation with the
+    same code, tasks and checkpoint must keep the same identity.
+    """
+    return {
+        "protocol_source_sha256": hashlib.sha256(
+            Path(__file__).read_bytes()
+        ).hexdigest(),
+        "checkpoint": args.checkpoint,
+        "model": args.model,
+        "harnesses": harnesses,
+        "task_names": [task["name"] for task in tasks],
+        "temperature": 0.8,
+        "instruction_hash": hashlib.sha256(
+            "".join(task["instruction"] for task in tasks).encode()
+        ).hexdigest(),
+        "task_set_sha256": provenance.sha256_rows(
+            tasks, ("name", "instruction", "difficulty")
+        ),
+        "git_commit": provenance.git_commit(_REPO_ROOT),
+        "dataset_revisions": dataset_revisions(args.data),
+        "grader_sha256": grader_sha256(args.data),
+    }
+
+
 def summarize(rows, expected):
     graded = [row for row in rows if row.get("correctness") in (0, 1)]
 
@@ -188,19 +246,7 @@ def main():
     selected = list(enumerate(tasks))[: args.tasks]
     harnesses = ["whitebox"] if args.mode == "whitebox" else HARNESSES
     output = Path(args.output)
-    identity = {
-        "protocol_source_sha256": hashlib.sha256(
-            Path(__file__).read_bytes()
-        ).hexdigest(),
-        "checkpoint": args.checkpoint,
-        "model": args.model,
-        "harnesses": harnesses,
-        "task_names": [t["name"] for _, t in selected],
-        "temperature": 0.8,
-        "instruction_hash": hashlib.sha256(
-            "".join(t["instruction"] for _, t in selected).encode()
-        ).hexdigest(),
-    }
+    identity = build_identity(args, [task for _, task in selected], harnesses)
     identity_path = output / "identity.json"
     if identity_path.exists() and json.loads(identity_path.read_text()) != json.loads(
         json.dumps(identity)
@@ -211,12 +257,58 @@ def main():
         (index, task, harness) for index, task in selected for harness in harnesses
     ]
 
+    data_dir = Path(args.data).resolve()
+    assets = [
+        {"path": str(Path(__file__).resolve()), "role": "eval_harness"},
+        {"path": str(_REPO_ROOT / "05-multi-harness-rl" / "prepare.py"), "role": "prepare"},
+    ]
+    for path, role in (
+        (data_dir / "test_manifest.json", "test_manifest"),
+        (data_dir / "ready.json", "ready"),
+        (_REPO_ROOT / "05-multi-harness-rl" / "data" / "test.json", "task_split"),
+    ):
+        if path.is_file():
+            assets.append({"path": str(path), "role": role})
+    trace_path = output / "provenance.jsonl"
+    trace = provenance.RunTrace(
+        trace_path,
+        config={
+            **identity,
+            "mode": args.mode,
+            "tasks": args.tasks,
+            "data": str(data_dir),
+            "sandbox": "whitebox" if args.mode == "whitebox" else "harbor",
+        },
+        assets=assets,
+        repo_root=_REPO_ROOT,
+    )
+    trace.start()
+
+    def record_pair(row, task, harness, *, resumed, error=None, seconds=None):
+        trace.record(
+            task=task["name"],
+            harness=harness,
+            instruction_sha256=provenance.sha256_text(task["instruction"]),
+            correctness=row.get("correctness"),
+            reward=row.get("reward"),
+            tool_calls=row.get("tool_calls"),
+            ungraded=row.get("correctness") is None,
+            resumed=resumed,
+            error=error or row.get("error"),
+            seconds=seconds if seconds is not None else row.get("seconds"),
+            code=None,
+            stdout=None,
+            stderr=None,
+            source="harbor" if args.mode != "whitebox" else "whitebox",
+        )
+
     def one(pair):
         index, task, harness = pair
         path = output / "pairs" / f"{task['name']}--{harness}.json"
         if path.exists():
             previous = json.loads(path.read_text())
             if previous.get("correctness") in (0, 1):
+                record_pair(previous, task, harness, resumed=True)
                 return previous
         start = time.monotonic()
         row = {
@@ -242,15 +334,30 @@ def main():
                     detail = detail.replace(value, "[redacted]")
             row.update(correctness=None, error=type(exc).__name__, detail=detail[:1000])
         row["seconds"] = time.monotonic() - start
+        record_pair(row, task, harness, resumed=False, seconds=row["seconds"])
         write_json(path, row)
         return row
 
     rows = []
-    with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-        for future in as_completed([pool.submit(one, pair) for pair in pairs]):
-            rows.append(future.result())
-            write_json(output / "progress.json", summarize(rows, len(pairs)))
+    try:
+        with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+            for future in as_completed([pool.submit(one, pair) for pair in pairs]):
+                rows.append(future.result())
+                write_json(output / "progress.json", summarize(rows, len(pairs)))
+    finally:
+        footer = trace.finish()
+    if not footer["valid"]:
+        print(
+            "WARNING: a reward asset changed during the run; provenance marks it invalid",
+            file=sys.stderr,
+        )
     summary = summarize(rows, len(pairs))
+    summary["provenance"] = {
+        "path": str(trace_path),
+        "run_id": trace.run_id,
+        "valid": footer["valid"],
+        "assets_changed": footer["assets_changed"],
+    }
     summary["harnesses"] = {
         h: summarize([r for r in rows if r["harness"] == h], args.tasks)
         for h in harnesses

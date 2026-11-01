@@ -82,7 +82,7 @@ class WordleSkyRLEnv(BaseTextEnv):
         self.turns = 0
         self.error_count = 0
         self._episode_done = False
-        return prompt, {"max_turns": self.max_turns, "answer": self._game.answer}
+        return prompt, {"max_turns": self.max_turns}
 
     def step(self, action: str) -> BaseTextEnvStepOutput:
         """Process model text — extract guess word and submit to game."""

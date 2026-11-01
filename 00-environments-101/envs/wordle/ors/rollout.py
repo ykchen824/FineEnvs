@@ -78,7 +78,7 @@ def main() -> int:
     api = EnvironmentsAPI(base_url=ENV_URL, api_key="")
     env = api.get(ENV_NAME)
     tasks = env.list_tasks(SPLIT)
-    print(f"\n{len(tasks)} tasks in '{SPLIT}'. Using task #{TASK_INDEX}: answer={tasks[TASK_INDEX].task_spec.get('answer','?')}")
+    print(f"\n{len(tasks)} tasks in '{SPLIT}'. Using task #{TASK_INDEX}: task_id={tasks[TASK_INDEX].task_spec.get('task_id','?')}")
     tools = ors_tools_to_openai(env.list_tools())
     print(f"Discovered {len(tools)} tools: {[t['function']['name'] for t in tools]}\n")
 

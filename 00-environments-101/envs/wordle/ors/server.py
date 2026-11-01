@@ -70,6 +70,12 @@ class WordleORS(Environment):
     def setup(self):
         """Called on first tool invocation — create WordleGame."""
         answer = self.task_spec.get("answer", "")
+        if not answer:
+            task_id = self.task_spec.get("task_id")
+            answer = next(
+                (task["answer"] for task in TASKS if task.get("task_id") == task_id),
+                "",
+            )
         self._game = WordleGame(answer=answer) if answer else WordleGame()
         self._rewarded_game = None
 
@@ -85,7 +91,12 @@ class WordleORS(Environment):
 
     @classmethod
     def list_tasks(cls, split: str):
-        return TASKS
+        # Discovery is client-visible; the answer stays server-side and is
+        # resolved from task_id in setup().
+        return [
+            {key: value for key, value in task.items() if key != "answer"}
+            for task in TASKS
+        ]
 
     def get_prompt(self):
         return [TextBlock(

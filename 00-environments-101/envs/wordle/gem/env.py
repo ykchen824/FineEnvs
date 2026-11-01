@@ -99,7 +99,6 @@ class WordleGemEnv(Env):
         )
 
         info = {
-            "answer": self._game.answer,
             "suffix": "Make your first guess.",
         }
 
